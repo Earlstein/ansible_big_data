@@ -1,0 +1,14 @@
+#!/bin/bash
+# ansible_big_data/roles/hadoop/templates/profile.d.sh.j2
+#
+# This file sets system-wide environment variables so that any user
+# who logs in can easily use hadoop commands.
+
+export HADOOP_HOME={{ hadoop_symlink }}
+export HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop
+export HADOOP_MAPRED_HOME=$HADOOP_HOME
+export HADOOP_COMMON_HOME=$HADOOP_HOME
+export HADOOP_HDFS_HOME=$HADOOP_HOME
+export YARN_HOME=$HADOOP_HOME
+
+export PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin

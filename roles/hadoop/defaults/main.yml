@@ -1,0 +1,4 @@
+# Default variables for the Hadoop role.
+---
+hadoop_user: "hadoop"
+hadoop_group: "hadoop"

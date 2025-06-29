@@ -1,0 +1,19 @@
+# Sets environment variables for Hadoop itself.
+# This template dynamically determines JAVA_HOME on the target machine.
+
+# The Java implementation to use. By default, this is determined by the system.
+# We ensure the correct Java version is installed in our tasks.
+export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
+
+# Extra Java runtime options.
+export HADOOP_OPTS="$HADOOP_OPTS -Djava.net.preferIPv4Stack=true"
+
+# The maximum amount of heap to use, in MB. Default is 1000.
+export HADOOP_HEAPSIZE_MAX=1000
+
+# The user to run the daemons as.
+export HADOOP_NAMENODE_USER={{ hadoop_user }}
+export HADOOP_DATANODE_USER={{ hadoop_user }}
+export HADOOP_SECONDARYNAMENODE_USER={{ hadoop_user }}
+export HADOOP_YARN_RESOURCEMANAGER_USER={{ hadoop_user }}
+export HADOOP_YARN_NODEMANAGER_USER={{ hadoop_user }}

@@ -1,0 +1,10 @@
+# This is the main playbook file.
+# It connects the hosts from our inventory with the roles to be applied.
+
+- name: Install and Configure Hadoop
+# This makes 'become' (sudo) conditional on our variable.
+# It will only be 'true' if hadoop_install_no_sudo is 'false'.
+  become: "{{ not hadoop_install_no_sudo }}"
+  hosts: hadoop_nodes # This targets all hosts in the 'hadoop_nodes' group from inventory.ini
+  roles:
+    - hadoop # This tells Ansible to run all the tasks from the 'roles/hadoop' directory.

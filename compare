@@ -1,0 +1,195 @@
+# ansible_big_data/roles/hadoop/tasks/main.yml
+#
+# This file now has 'become: true' on each task that needs it,
+# and explicitly creates the group before the user.
+---
+- name: "SETUP (Sudo Mode) | Create the Hadoop system group"
+  ansible.builtin.group:
+    name: "{{ hadoop_group }}"
+    state: present
+    system: true
+  become: true
+  when: not hadoop_install_no_sudo
+
+- name: "SETUP (Sudo Mode) | Create the Hadoop system user"
+  ansible.builtin.user:
+    name: "{{ hadoop_user }}"
+    group: "{{ hadoop_group }}"
+    state: present
+    system: true
+    create_home: false
+  become: true
+  when: not hadoop_install_no_sudo
+
+- name: "SETUP (Sudo Mode) | Install Java dependency"
+  ansible.builtin.apt:
+    name: "{{ java_package }}"
+    state: present
+    update_cache: true
+  become: true
+  when: not hadoop_install_no_sudo
+
+- name: "SETUP (No-Sudo Mode) | Check if Java is installed"
+  ansible.builtin.command: "java -version"
+  register: java_check
+  changed_when: false
+  failed_when: java_check.rc != 0
+  when: hadoop_install_no_sudo
+  ignore_errors: true
+
+- name: "SETUP (No-Sudo Mode) | Fail if Java is not found"
+  ansible.builtin.fail:
+    msg: |
+      Java is not installed, but is required.
+      In 'no-sudo' mode, Ansible cannot install it for you.
+      Please install '{{ java_package }}' manually on the target machine and rerun.
+  when: hadoop_install_no_sudo and java_check.rc != 0
+
+- name: "INSTALL | Download and Unarchive Hadoop"
+  block:
+    - name: "INSTALL | Announce download details"
+      ansible.builtin.debug:
+        msg: "Downloading Hadoop {{ hadoop_version }} from {{ hadoop_url }} to /tmp/hadoop-{{ hadoop_version }}.tar.gz"
+
+    - name: "INSTALL | Download Hadoop binary tarball"
+      ansible.builtin.get_url:
+        url: "{{ hadoop_url }}"
+        dest: "/tmp/hadoop-{{ hadoop_version }}.tar.gz"
+        checksum: "{{ hadoop_checksum }}"
+        mode: '0644'
+
+    - name: "INSTALL (Sudo Mode) | Ensure installation directory exists"
+      ansible.builtin.file:
+        path: "{{ install_prefix }}"
+        state: directory
+        mode: '0755'
+      become: true
+      when: not hadoop_install_no_sudo
+
+    - name: "INSTALL (No-Sudo Mode) | Ensure user installation directory exists"
+      ansible.builtin.file:
+        path: "{{ install_prefix }}" # Resolves to user home path in this mode
+        state: directory
+        mode: '0755'
+      when: hadoop_install_no_sudo
+
+    - name: "INSTALL | Unarchive Hadoop to installation directory"
+      ansible.builtin.unarchive:
+        src: "/tmp/hadoop-{{ hadoop_version }}.tar.gz"
+        dest: "{{ install_prefix }}"
+        remote_src: true
+        creates: "{{ install_prefix }}/hadoop-{{ hadoop_version }}"
+      become: true
+      when: not hadoop_install_no_sudo
+      
+    - name: "INSTALL (No-Sudo) | Unarchive Hadoop to installation directory"
+      ansible.builtin.unarchive:
+        src: "/tmp/hadoop-{{ hadoop_version }}.tar.gz"
+        dest: "{{ install_prefix }}"
+        remote_src: true
+        creates: "{{ install_prefix }}/hadoop-{{ hadoop_version }}"
+      when: hadoop_install_no_sudo
+
+  when: not (ansible_check_mode)
+
+- name: "CONFIG | Create the version-agnostic symlink"
+  ansible.builtin.file:
+    src: "{{ install_prefix }}/hadoop-{{ hadoop_version }}"
+    dest: "{{ hadoop_symlink }}"
+    state: link
+    force: true
+  become: true
+  when: not hadoop_install_no_sudo
+
+- name: "CONFIG (No-Sudo)| Create the version-agnostic symlink"
+  ansible.builtin.file:
+    src: "{{ install_prefix }}/hadoop-{{ hadoop_version }}"
+    dest: "{{ hadoop_symlink }}"
+    state: link
+    force: true
+  when: hadoop_install_no_sudo
+
+- name: "CONFIG | Create data directories for NameNode and DataNode"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ hadoop_user if not hadoop_install_no_sudo else omit }}"
+    group: "{{ hadoop_group if not hadoop_install_no_sudo else omit }}"
+    mode: '0755'
+  with_items:
+    - "{{ namenode_data_dir }}"
+    - "{{ datanode_data_dir }}"
+  become: true
+  when: not hadoop_install_no_sudo
+
+- name: "CONFIG (No-Sudo) | Create data directories for NameNode and DataNode"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  with_items:
+    - "{{ namenode_data_dir }}"
+    - "{{ datanode_data_dir }}"
+  when: hadoop_install_no_sudo
+
+- name: "CONFIG (Sudo Mode) | Change ownership of the Hadoop installation"
+  ansible.builtin.file:
+    path: "{{ install_prefix }}/hadoop-{{ hadoop_version }}"
+    state: directory
+    owner: "{{ hadoop_user }}"
+    group: "{{ hadoop_group }}"
+    recurse: true
+  become: true
+  when: not hadoop_install_no_sudo
+
+- name: "CONFIG | Deploy configuration files from templates"
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ hadoop_symlink }}/etc/hadoop/{{ item.dest }}"
+    mode: '0644'
+    owner: "{{ hadoop_user if not hadoop_install_no_sudo else omit }}"
+    group: "{{ hadoop_group if not hadoop_install_no_sudo else omit }}"
+  with_items:
+    - { src: 'hadoop-env.sh.j2', dest: 'hadoop-env.sh' }
+    - { src: 'core-site.xml.j2', dest: 'core-site.xml' }
+    - { src: 'hdfs-site.xml.j2', dest: 'hdfs-site.xml' }
+    - { src: 'yarn-site.xml.j2', dest: 'yarn-site.xml' }
+    - { src: 'mapred-site.xml.j2', dest: 'mapred-site.xml' }
+  become: true
+  when: not hadoop_install_no_sudo
+  
+- name: "CONFIG (No-Sudo) | Deploy configuration files from templates"
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ hadoop_symlink }}/etc/hadoop/{{ item.dest }}"
+    mode: '0644'
+  with_items:
+    - { src: 'hadoop-env.sh.j2', dest: 'hadoop-env.sh' }
+    - { src: 'core-site.xml.j2', dest: 'core-site.xml' }
+    - { src: 'hdfs-site.xml.j2', dest: 'hdfs-site.xml' }
+    - { src: 'yarn-site.xml.j2', dest: 'yarn-site.xml' }
+    - { src: 'mapred-site.xml.j2', dest: 'mapred-site.xml' }
+  when: hadoop_install_no_sudo
+
+- name: "CONFIG (Sudo Mode) | Set up environment variables for all users"
+  ansible.builtin.template:
+    src: "profile.d.sh.j2"
+    dest: "/etc/profile.d/hadoop.sh"
+    mode: '0755'
+  become: true
+  when: not hadoop_install_no_sudo
+
+- name: "CONFIG (No-Sudo Mode) | Set up environment variables in .bashrc"
+  ansible.builtin.blockinfile:
+    path: "{{ ansible_user_dir }}/.bashrc"
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - HADOOP"
+    create: true
+    block: |
+      export HADOOP_HOME={{ hadoop_symlink }}
+      export HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop
+      export HADOOP_MAPRED_HOME=$HADOOP_HOME
+      export HADOOP_COMMON_HOME=$HADOOP_HOME
+      export HADOOP_HDFS_HOME=$HADOOP_HOME
+      export YARN_HOME=$HADOOP_HOME
+      export PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin
+  when: hadoop_install_no_sudo

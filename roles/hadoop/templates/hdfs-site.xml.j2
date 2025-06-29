@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<!--
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License. See accompanying LICENSE file.
+-->
+
+<!-- ansible_big_data/roles/hadoop/templates/hdfs-site.xml.j2 -->
+<configuration>
+    <!--
+      The default block replication.
+      For a single-node cluster, this must be 1. For a multi-node cluster, 3 is standard.
+    -->
+    <property>
+        <name>dfs.replication</name>
+        <value>1</value>
+    </property>
+
+    <!--
+      The directory where the NameNode stores the filesystem metadata.
+      This value is configured in group_vars/all.yml.
+    -->
+    <property>
+        <name>dfs.namenode.name.dir</name>
+        <value>{{ namenode_data_dir }}</value>
+    </property>
+
+    <!--
+      The directory where DataNodes store their blocks.
+      This value is configured in group_vars/all.yml.
+    -->
+    <property>
+        <name>dfs.datanode.data.dir</name>
+        <value>{{ datanode_data_dir }}</value>
+    </property>
+</configuration>
